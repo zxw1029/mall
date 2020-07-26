@@ -14,7 +14,7 @@ https://download.docker.com/linux/centos/docker-ce.repo
 yum install docker-ce
 4. 启动docker:
 systemctl start docker
-注：常见命令见macro/spring-cloud-demo中的docker.md
+注：常见命令见document/reference文件夹中的docker.md
 5. 安装上传下载插件：
 yum -y install lrzsz
 ### docker compose安装
@@ -25,7 +25,7 @@ yum -y install lrzsz
 
 ## mysql安装
 ### 下载镜像文件
-docker pull mysql:5.7
+docker pull mysql:5.7 
 ### 创建实例并启动
 docker run -p 3306:3306 --name mysql \
 -v /mydata/mysql/log:/var/log/mysql \
@@ -123,7 +123,7 @@ docker run -p 8080:8080 --name mall-admin \
 -v /etc/timezone:/etc/timezone \
 -v /etc/localtime:/etc/localtime \
 -v /mydata/app/admin/logs:/var/logs \
--d mall/mall-admin:0.0.1-SNAPSHOT
+-d mall/mall-admin:1.0-SNAPSHOT
 ### 部署mall-search
 docker run -p 8081:8081 --name mall-search \
 --link elasticsearch:es \
@@ -131,7 +131,7 @@ docker run -p 8081:8081 --name mall-search \
 -v /etc/timezone:/etc/timezone \
 -v /etc/localtime:/etc/localtime \
 -v /mydata/app/search/logs:/var/logs \
--d mall/mall-search:0.0.1-SNAPSHOT
+-d mall/mall-search:1.0-SNAPSHOT
 ### 部署mall-port
 docker run -p 8085:8085 --name mall-portal \
 --link mysql:db \
@@ -140,7 +140,7 @@ docker run -p 8085:8085 --name mall-portal \
 -v /etc/timezone:/etc/timezone \
 -v /etc/localtime:/etc/localtime \
 -v /mydata/app/portal/logs:/var/logs \
--d mall/mall-portal:0.0.1-SNAPSHOT
+-d mall/mall-portal:1.0-SNAPSHOT
 
 ## SpringBoot应用自动化部署
 ### 部署文件

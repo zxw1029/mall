@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -177,16 +178,21 @@ public class EsProductServiceImpl implements EsProductService {
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.matchQuery("keywords", keyword),
                     ScoreFunctionBuilders.weightFactorFunction(2)));
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.matchQuery("brandId", brandId),
-                    ScoreFunctionBuilders.weightFactorFunction(10)));
+                    ScoreFunctionBuilders.weightFactorFunction(5)));
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.matchQuery("productCategoryId", productCategoryId),
-                    ScoreFunctionBuilders.weightFactorFunction(6)));
+                    ScoreFunctionBuilders.weightFactorFunction(3)));
             FunctionScoreQueryBuilder.FilterFunctionBuilder[] builders = new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()];
             filterFunctionBuilders.toArray(builders);
             FunctionScoreQueryBuilder functionScoreQueryBuilder = QueryBuilders.functionScoreQuery(builders)
                     .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
                     .setMinScore(2);
+            //用于过滤掉相同的商品
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            boolQueryBuilder.mustNot(QueryBuilders.termQuery("id",id));
+            //构建查询条件
             NativeSearchQueryBuilder builder = new NativeSearchQueryBuilder();
             builder.withQuery(functionScoreQueryBuilder);
+            builder.withFilter(boolQueryBuilder);
             builder.withPageable(pageable);
             NativeSearchQuery searchQuery = builder.build();
             LOGGER.info("DSL:{}", searchQuery.getQuery().toString());
@@ -211,12 +217,12 @@ public class EsProductServiceImpl implements EsProductService {
         //聚合搜索商品属性，去除type=1的属性
         AbstractAggregationBuilder aggregationBuilder = AggregationBuilders.nested("allAttrValues","attrValueList")
                 .subAggregation(AggregationBuilders.filter("productAttrs",QueryBuilders.termQuery("attrValueList.type",1))
-                .subAggregation(AggregationBuilders.terms("attrIds")
-                        .field("attrValueList.productAttributeId")
-                        .subAggregation(AggregationBuilders.terms("attrValues")
-                                .field("attrValueList.value"))
-                        .subAggregation(AggregationBuilders.terms("attrNames")
-                                .field("attrValueList.name"))));
+                        .subAggregation(AggregationBuilders.terms("attrIds")
+                                .field("attrValueList.productAttributeId")
+                                .subAggregation(AggregationBuilders.terms("attrValues")
+                                        .field("attrValueList.value"))
+                                .subAggregation(AggregationBuilders.terms("attrNames")
+                                        .field("attrValueList.name"))));
         builder.addAggregation(aggregationBuilder);
         NativeSearchQuery searchQuery = builder.build();
         return elasticsearchTemplate.query(searchQuery, response -> {
@@ -247,25 +253,25 @@ public class EsProductServiceImpl implements EsProductService {
         productRelatedInfo.setProductCategoryNames(productCategoryNameList);
         //设置参数
         Aggregation productAttrs = aggregationMap.get("allAttrValues");
-//        List<Terms.Bucket> attrIds = ((LongTerms) ((InternalFilter)productAttrs.getProperty("productAttrs")).getAggregations().getProperty("attrIds")).getBuckets();
-//        List<EsProductRelatedInfo.ProductAttr> attrList = new ArrayList<>();
-//        for (Terms.Bucket attrId : attrIds) {
-//            EsProductRelatedInfo.ProductAttr attr = new EsProductRelatedInfo.ProductAttr();
-//            attr.setAttrId((Long) attrId.getKey());
-//            List<String> attrValueList = new ArrayList<>();
-//            List<Terms.Bucket> attrValues = ((StringTerms) attrId.getAggregations().get("attrValues")).getBuckets();
-//            List<Terms.Bucket> attrNames = ((StringTerms) attrId.getAggregations().get("attrNames")).getBuckets();
-//            for (Terms.Bucket attrValue : attrValues) {
-//                attrValueList.add(attrValue.getKeyAsString());
-//            }
-//            attr.setAttrValues(attrValueList);
-//            if(!CollectionUtils.isEmpty(attrNames)){
-//                String attrName = attrNames.get(0).getKeyAsString();
-//                attr.setAttrName(attrName);
-//            }
-//            attrList.add(attr);
-//        }
-//        productRelatedInfo.setProductAttrs(attrList);
+        List<LongTerms.Bucket> attrIds = ((LongTerms) ((InternalFilter) ((InternalNested) productAttrs).getProperty("productAttrs")).getProperty("attrIds")).getBuckets();
+        List<EsProductRelatedInfo.ProductAttr> attrList = new ArrayList<>();
+        for (Terms.Bucket attrId : attrIds) {
+            EsProductRelatedInfo.ProductAttr attr = new EsProductRelatedInfo.ProductAttr();
+            attr.setAttrId((Long) attrId.getKey());
+            List<String> attrValueList = new ArrayList<>();
+            List<StringTerms.Bucket> attrValues = ((StringTerms) attrId.getAggregations().get("attrValues")).getBuckets();
+            List<StringTerms.Bucket> attrNames = ((StringTerms) attrId.getAggregations().get("attrNames")).getBuckets();
+            for (Terms.Bucket attrValue : attrValues) {
+                attrValueList.add(attrValue.getKeyAsString());
+            }
+            attr.setAttrValues(attrValueList);
+            if(!CollectionUtils.isEmpty(attrNames)){
+                String attrName = attrNames.get(0).getKeyAsString();
+                attr.setAttrName(attrName);
+            }
+            attrList.add(attr);
+        }
+        productRelatedInfo.setProductAttrs(attrList);
         return productRelatedInfo;
     }
 }
